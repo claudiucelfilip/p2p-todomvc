@@ -6,6 +6,7 @@ const webpack = require('webpack');
 const path = require('path');
 
 module.exports = {
+	devtool: 'cheap-module-source-map',
 	entry: {
 		bundle: [
 			'react-hot-loader/patch', 
