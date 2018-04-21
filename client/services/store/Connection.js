@@ -1,3 +1,8 @@
+import { Subject } from 'rxjs/Subject'
+import { Observable } from 'rxjs/Observable';
+import 'rxjs/add/observable/zip';
+import 'rxjs/add/operator/map';
+
 export default class Connection {
     constructor(type, localUuid) {
         this.initConfig();
@@ -8,7 +13,7 @@ export default class Connection {
 
         this.connection = new RTCPeerConnection(this.config);
 
-        this.onOpen = Rx.Observable.zip(
+        this.onOpen = Observable.zip(
             this.onSendChannelOpen(),
             this.onReceiveChannelOpen()
         ).map(([sendChannel, receiveChannel]) => {
@@ -41,7 +46,7 @@ export default class Connection {
     }
 
     onChannelClose() {
-        let subject = new Rx.Subject();
+        let subject = new Subject();
         this.sendChannel.onclose = () => {
             console.log(
                 'send datachannel closed',
@@ -52,7 +57,7 @@ export default class Connection {
         return subject;
     }
     onSendChannelOpen() {
-        let subject = new Rx.Subject();
+        let subject = new Subject();
         this.sendChannel = this.connection.createDataChannel(
             `channel ${Math.random()}`
         );
@@ -86,7 +91,7 @@ export default class Connection {
         });
     }
     onReceiveChannelOpen() {
-        let subject = new Rx.Subject();
+        let subject = new Subject();
         this.connection.ondatachannel = event => {
             this.receiveChannel = event.channel;
             this.receiveChannel.onmessage = this.onMessage.bind(this);

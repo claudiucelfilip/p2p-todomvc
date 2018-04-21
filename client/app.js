@@ -2,18 +2,20 @@ import React from 'react';
 import 'todomvc-common/base.css';
 import 'todomvc-app-css';
 import 'app.css';
-import Worker from './services/worker/Worker'
+import Worker from './services/worker/Worker';
+import Store, { withStore } from './services/store/Store';
 
+import Home from './containers/Home/Home';
 
-var worker = Worker.init();
-worker.subscribe(() => {
-	// addImages();
-	console.log('Worker works');
-	navigator.serviceWorker.addEventListener('message', event => {
-		// let message = event.data;
-		// peers.broadcast(message.type, message);
-	});
-});
-export default () => {
-	return <div>Hello World!</div>
+const store = new Store('ws://localhost:8001');
+const worker = new Worker();
+
+const App = (props) => {
+	return <Home store={props.store} />;
 };
+
+const Loading = () => {
+	return <h1>Loading</h1>;
+};
+
+export default withStore(store)(App, Loading);

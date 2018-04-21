@@ -25,11 +25,12 @@ var app = express();
 // );
 
 const server = http.createServer(app);
-
+const PORT = process.env.P2P_SERVER_PORT || 8001;
 const wServer = new WebSocket.Server({ server });
 
 var peers = {},
     offers = [];
+
 wServer.on('connection', function (ws) {
     var currentPeer;
 
@@ -52,6 +53,7 @@ wServer.on('connection', function (ws) {
                 currentPeer = action.data.uuid;
                 console.log('New Peer', currentPeer, Object.keys(peers));
                 break;
+
             case 'sendOffer':
                 offers.push(action.data);
                 console.log(offers.map(offer => offer.uuid));
@@ -63,6 +65,7 @@ wServer.on('connection', function (ws) {
                     }
                 });
                 break;
+
             case 'requestOffer':
                 console.log(offers.map(offer => offer.uuid));
                 let offerId = action.data && action.data.id;
@@ -71,6 +74,7 @@ wServer.on('connection', function (ws) {
                     data: getOffer(offerId)
                 });
                 break;
+
             case 'sendAnswer':
                 removeOffer(action.data.id);
                 sendMessage({
@@ -124,4 +128,6 @@ wServer.on('connection', function (ws) {
         // return offers[index];
     }
 });
-server.listen(8000);
+server.listen(PORT, function() {
+    console.log('Listening on', PORT);
+});
