@@ -2,12 +2,13 @@ import OfferPeer from './OfferPeer';
 import AskPeer from './AskPeer';
 
 export default class PeerFactory {
-    create (peerType, local) {
+    create (peerType, ...args) {
+        console.log(...args);
         switch (peerType) {
             case 'offer':
-                return new OfferPeer(local);
+                return new OfferPeer(...args);
             case 'ask':
-                return new AskPeer(local);
+                return new AskPeer(...args);
         }
     }
 }

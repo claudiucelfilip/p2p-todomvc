@@ -2,7 +2,8 @@ import React from 'react';
 import Local from './Local';
 import Socket from './Socket';
 import Peers from './Peers';
-import { Subject } from 'rxjs';
+import { Subject, BehaviorSubject } from 'rxjs';
+
 import { Observable } from 'rxjs/Observable';
 import { zip } from 'rxjs/observable/zip';
 import { switchMap } from 'rxjs/operators';
@@ -17,9 +18,9 @@ export const withStore = (store) => (Component, LoadingComponent) => {
                 storeReady: false
             };
 
-            store.subject.subscribe(() => {
+            store.subject.subscribe((peers) => {
                 this.setState({
-                    storeReady: true
+                    storeReady: peers.length > 0
                 });
             });
         }
@@ -54,5 +55,9 @@ export default class Store {
     init () {
         this.socket.init();
         this.local.init();
+    }
+
+    broadcast (...args) {
+        this.peers.broadcast(...args);
     }
 }

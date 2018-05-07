@@ -78,6 +78,7 @@ export default class Connection {
 
     onMessage(message) {
         let payload;
+
         try {
             payload = JSON.parse(message.data);
         } catch (e) {
@@ -85,6 +86,7 @@ export default class Connection {
         }
         let type = payload.type || 'response';
 
+        payload.visited = [...payload.visited, this.localUuid];
         // console.log('received', payload, this.handlers);
         (this.handlers[type] || []).forEach(handler => {
             handler(payload);
@@ -143,29 +145,29 @@ export default class Connection {
         return this;
     }
 
-    send(type, data, target, uuids, broadcast) {
-        let payload = {
+    send(type, message, broadcast, visited) {
+        let data = {
             type,
-            broadcast,
-            target,
-            sourceUuid: this.localUuid,
-            nextUuid: this.uuid,
-            uuids: [...(uuids || []), this.localUuid],
-            data
+            message,
+            broadcast: broadcast || false,
+            source: this.localUuid,
+            target: this.uuid,
+            visited
         };
-        console.log('Sending', payload.uuids);
+        console.log('Sending to', data.target);
         if (type === 'response') {
             return this.sendChannel.send(data.blob);
         }
-        if (typeof payload !== 'string') {
-            payload = JSON.stringify(payload);
+        if (typeof data !== 'string') {
+            data = JSON.stringify(data);
         }
         if (this.sendChannel.readyState === 'open') {
-            this.sendChannel.send(payload);
+            this.sendChannel.send(data);
         }
     }
 
-    broadcast(type, data, target, uuids) {
-        this.send(type, data, target, uuids, true);
+    broadcast(type, message, visited = []) {
+        visited = [...visited, this.localUuid];
+        this.send(type, message, true, visited);
     }
 }

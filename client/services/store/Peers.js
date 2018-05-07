@@ -7,6 +7,7 @@ import { Observable } from 'rxjs/Observable';
 export default class Peers {
     constructor (local) {
         this.subject = new ReplaySubject(1);
+        this.message = new Subject();
         this.local = local;
         this.pool = new BehaviorSubject([]);
         this.peerFactory = new PeerFactory();
@@ -15,28 +16,50 @@ export default class Peers {
     }
 
     init () {
-        let peer1 = this.createPeer('offer');
-        let peer2 = this.createPeer('ask');
+        this.createPeer('offer');
 
-        peer1.init();
-        setTimeout(() => {
-            peer2.init();
-        }, 3000);
-        
-        
+        Observable.interval(1500)
+            .take(2)
+            .subscribe(() => {
+                this.createPeer('ask');
+            });
+
         this.pool
-            .filter(pool => pool.length)
-            .first()
             .subscribe((pool) => {
                 this.subject.next(pool);
             });
     }
 
     createPeer (peerType) {
-        let peer = this.peerFactory.create(peerType, this.local);
+        let peer = this.peerFactory.create(peerType, this.local, this.pool);
+
         peer.subject.subscribe(peer => {
+            peer.on('ping', (payload) => {
+                if (payload.broadcast === true) {
+                    this.broadcast(payload.type, payload.message, payload.visited);
+                }
+                this.message.next(payload);
+            });
             this.pool.next([...this.pool.value, peer]);
         });
+
+        peer.subject.last().subscribe(peer => {
+            this.pool.next([...this.pool.value.filter(item => item.id !== peer.id)]);
+            this.createPeer(peerType);
+        });
+
+        peer.init();
+
+
         return peer;
     }
+
+    broadcast (type, message, visited = []) {
+        this.pool.value
+            .filter(peer => visited.indexOf(peer.uuid) === -1)
+            .forEach(peer => {
+                peer.broadcast(type, message, visited);
+            });
+    }
+
 };

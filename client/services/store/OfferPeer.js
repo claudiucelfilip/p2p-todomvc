@@ -3,8 +3,8 @@ import { ReplaySubject } from 'rxjs/ReplaySubject';
 import Peer from './Peer';
 
 export default class OfferPeer extends Peer {
-    constructor (local) {
-        super('offer', local);
+    constructor (...args) {
+        super('offer', ...args);
     }
 
     init () {

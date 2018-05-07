@@ -1,10 +1,12 @@
 import Connection from './Connection';
 import { ReplaySubject } from 'rxjs/ReplaySubject';
+import { Subject } from 'rxjs/Subject';
+import { Observable } from 'rxjs/Observable';
 import Peer from './Peer';
 
 export default class AskPeer extends Peer {
-    constructor (local) {
-        super('ask', local);
+    constructor (...args) {
+        super('ask', ...args);
     }
 
     init () {
@@ -15,13 +17,23 @@ export default class AskPeer extends Peer {
     }
 
     ask = () => {
-        console.log('asking for offer');
-        this.local.socket.send('requestOffer');
+        let intv = new Subject();
+
+        Observable.interval(3000)
+            .takeUntil(intv)
+            .subscribe(() => {
+                console.log('asking for offer');
+                this.local.socket.send('requestOffer');
+            });
 
         return new Promise(resolve => {
             this.local.socket.on('offer', offer => {
-                if (offer) {
+                let pool = this.restrictedPool.value;
+                let restrictedUuids = pool.map(peer => peer.uuid);
+
+                if (offer && restrictedUuids.indexOf(offer.uuid) === -1) {
                     resolve(offer);
+                    intv.next(true);
                 }
             });
         });
