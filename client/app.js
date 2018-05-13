@@ -4,18 +4,26 @@ import 'todomvc-app-css';
 import 'app.css';
 import Worker from './services/worker/Worker';
 import Store, { withStore } from './services/store/Store';
-
+import LocalStorage from './services/drivers/LocalStorage';
 import Home from './containers/Home/Home';
+import Loading from './containers/Loading/Loading';
+import { devToolsEnhancer } from 'redux-devtools-extension';
+import { createStore, applyMiddleware } from 'redux';
+import { Provider } from 'react-redux';
+import reducers from './reducers';
 
-const store = new Store('ws://localhost:8001');
+
+const driver = new LocalStorage();
+const store = new Store('ws://localhost:8001', driver);
 const worker = new Worker();
 
-const App = (props) => {
-	return <Home store={props.store} />;
-};
+const reduxStore = createStore(reducers, devToolsEnhancer());
 
-const Loading = () => {
-	return <h1>Loading</h1>;
+
+const App = (props) => {
+	return <Provider store={reduxStore}>
+		<Home p2pStore={props.p2pStore}/>
+	</Provider>;
 };
 
 export default withStore(store)(App, Loading);

@@ -34,7 +34,7 @@ export default class Peers {
         let peer = this.peerFactory.create(peerType, this.local, this.pool);
 
         peer.subject.subscribe(peer => {
-            peer.on('ping', (payload) => {
+            peer.on((payload) => {
                 if (payload.broadcast === true) {
                     this.broadcast(payload.type, payload.message, payload.visited);
                 }
@@ -55,6 +55,7 @@ export default class Peers {
     }
 
     broadcast (type, message, visited = []) {
+        
         this.pool.value
             .filter(peer => visited.indexOf(peer.uuid) === -1)
             .forEach(peer => {

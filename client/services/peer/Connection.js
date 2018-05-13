@@ -88,7 +88,8 @@ export default class Connection {
 
         payload.visited = [...payload.visited, this.localUuid];
         // console.log('received', payload, this.handlers);
-        (this.handlers[type] || []).forEach(handler => {
+        let handlers = this.handlers[type] || [];
+        [...handlers, this.defaultHandler].forEach(handler => {
             handler(payload);
         });
     }
@@ -123,6 +124,10 @@ export default class Connection {
     }
 
     on(type, handler) {
+        if (typeof type === 'function') {
+            this.defaultHandler = type;
+            return;
+        }
         this.handlers[type] = this.handlers[type] || [];
         this.handlers[type].push(handler);
         return this;

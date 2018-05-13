@@ -19,7 +19,10 @@ module.exports = {
 			'css',
 			'client'
 		],
-		extensions: ['.js', '.jsx', '.css']
+		extensions: ['.js', '.jsx', '.css'],
+		alias: {
+			'react-redux': path.resolve(__dirname, 'node_modules/react-redux/src')
+		}
 	},
 	output: {
 		path: __dirname + '/dist',
