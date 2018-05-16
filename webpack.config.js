@@ -1,25 +1,33 @@
 const CleanWebpackPlugin = require('clean-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
+const ExtractTextPlugin = require('extract-text-webpack-plugin');
+const CopyWebpackPlugin = require('copy-webpack-plugin')
 const webpack = require('webpack');
 const path = require('path');
 
 module.exports = {
-	entry: [
-		'react-hot-loader/patch',
-		'./src/index.js'
-	],
+	devtool: 'cheap-module-source-map',
+	entry: {
+		bundle: [
+			'react-hot-loader/patch', 
+			'./client/index.js'
+		]
+	},
 	resolve: {
 		modules: [
 			'node_modules',
 			'css',
-			'src'
+			'client'
 		],
-		extensions: ['.js', '.jsx', '.css']
+		extensions: ['.js', '.jsx', '.css'],
+		alias: {
+			'react-redux': path.resolve(__dirname, 'node_modules/react-redux/src')
+		}
 	},
 	output: {
 		path: __dirname + '/dist',
 		publicPath: '/',
-		filename: 'bundle.js',
+		filename: '[name].js',
 		// publicPath: 'http://localhost:3000/',
 		hotUpdateChunkFilename: 'dist/[id].[hash].hot-update.js',
 		hotUpdateMainFilename: 'dist/[hash].hot-update.json'
@@ -34,7 +42,10 @@ module.exports = {
 			},
 			{
 				test: /\.css$/,
-				use: [ 'style-loader', 'css-loader' ]
+				use: ExtractTextPlugin.extract({
+					fallback: 'style-loader',
+					use: 'css-loader'
+				})
 			}
 		]
 	},
@@ -42,11 +53,16 @@ module.exports = {
 		historyApiFallback: true,
 		contentBase: './dist',
 		hot: true,
-		inline: true
+		inline: true,
+		port: 8081
 	},
 	watch: false,
-	plugins:[
+	plugins: [
+		new CopyWebpackPlugin([
+			'client/services/worker/sw.js'
+		]),
 		new CleanWebpackPlugin(['dist']),
+		new ExtractTextPlugin('styles.css'),
 		new HtmlWebpackPlugin({
 			template: 'index.html'
 		}),
