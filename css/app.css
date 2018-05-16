@@ -6,3 +6,31 @@ remove this comment if used
 remove this file if not
 
 */
+
+.home-container {
+    display: flex;
+    flex-direction: row;
+}
+.todoapp {
+    flex: 1;
+}
+.monitor {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 40%;
+    max-height: 450px;
+    
+}
+
+.node {
+    fill: #ccc;
+    stroke: #fff;
+    stroke-width: 2px;
+}
+
+.link {
+    stroke: #777;
+    stroke-width: 2px;
+}

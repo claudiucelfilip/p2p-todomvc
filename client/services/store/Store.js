@@ -52,7 +52,7 @@ export default class Store {
             )
             .switchMap(() => {
                 this.peers.init();
-                return this.peers.subject;
+                return this.peers.pool;
             });
 
         this.peers.message.subscribe(data => {

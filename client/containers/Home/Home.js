@@ -1,6 +1,8 @@
 import React from 'react';
-import { addTodo, ADD_TODO } from '../../actions/todos';
+import Monitor from '../../components/Monitor/Monitor';
+import { addTodo, ADD_TODO, addTodos, ADD_TODOS } from '../../actions/todos';
 import { connect } from 'react-redux';
+import 'rxjs/add/operator/filter';
 
 class Home extends React.Component {
     constructor (...args) {
@@ -9,11 +11,24 @@ class Home extends React.Component {
         this.state = {
             message: ''
         };
-        
-        this.props.p2pStore.peers.message.subscribe(data => {
-            if (data.type === 'action') {
+
+        let messages = this.props.p2pStore.peers.message.filter(data => data.type === 'action');
+
+        messages
+            .filter(data => data.message.type === ADD_TODOS)
+            .take(1)
+            .subscribe(data => {
                 this.props.dispatch(data.message);
-            }
+            });
+
+        messages
+            .filter(data => data.message.type !== ADD_TODOS)
+            .subscribe(data => {
+                this.props.dispatch(data.message);
+            });
+
+        this.props.p2pStore.peers.subject.subscribe(peer => {
+            peer.send('action', addTodos(this.props.todos));
         });
     }
     onChange = (event) => {
@@ -36,10 +51,7 @@ class Home extends React.Component {
         }
     }
     render () {
-        return <div>
-            <h1>Hello Home</h1>
-            <input type="text" onChange={this.onChange} />
-            <p>{this.state.message}</p>
+        return <div className="home-container">
             <section className="todoapp">
                 <header className="header">
                     <h1>todos</h1>
@@ -67,10 +79,11 @@ class Home extends React.Component {
                             </div>
                             <input className="edit" defaultValue="Create a TodoMVC template" />
                         </li>
-                        
+
                     </ul>
                 </section>
             </section>
+            <Monitor peers={this.props.p2pStore.peers.pool}/>
         </div>;
     }
 

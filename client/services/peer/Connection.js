@@ -150,7 +150,9 @@ export default class Connection {
         return this;
     }
 
-    send(type, message, broadcast, visited) {
+    send(type, message, broadcast = false, visited = []) {
+        visited = [...visited, this.localUuid];
+
         let data = {
             type,
             message,
@@ -172,7 +174,6 @@ export default class Connection {
     }
 
     broadcast(type, message, visited = []) {
-        visited = [...visited, this.localUuid];
         this.send(type, message, true, visited);
     }
 }

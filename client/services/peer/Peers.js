@@ -6,7 +6,7 @@ import { Observable } from 'rxjs/Observable';
 
 export default class Peers {
     constructor (local) {
-        this.subject = new ReplaySubject(1);
+        this.subject = new Subject();
         this.message = new Subject();
         this.local = local;
         this.pool = new BehaviorSubject([]);
@@ -23,11 +23,6 @@ export default class Peers {
             .subscribe(() => {
                 this.createPeer('ask');
             });
-
-        this.pool
-            .subscribe((pool) => {
-                this.subject.next(pool);
-            });
     }
 
     createPeer (peerType) {
@@ -41,6 +36,7 @@ export default class Peers {
                 this.message.next(payload);
             });
             this.pool.next([...this.pool.value, peer]);
+            this.subject.next(peer);
         });
 
         peer.subject.last().subscribe(peer => {
