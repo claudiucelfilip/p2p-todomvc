@@ -31,14 +31,6 @@ class Home extends React.Component {
             peer.send('action', addTodos(this.props.todos));
         });
     }
-    onChange = (event) => {
-        let store = this.props.p2pStore;
-        let message = event.target.value;
-        store.broadcast('ping', message);
-        this.setState({
-            message
-        });
-    }
 
     onNewTodo = (event) => {
         if (event.key === 'Enter') {
