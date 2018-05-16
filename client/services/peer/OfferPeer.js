@@ -39,9 +39,9 @@ export default class OfferPeer extends Peer {
     }
 
     connect = (answer) => {
-        if (!answer.desc || answer.uuid === this.local.uuid) {
-            return;
-        }
+        // if (!answer.desc || answer.uuid === this.local.uuid) {
+        //     return;
+        // }
 
         return this.peer.connection
             .setRemoteDescription(new RTCSessionDescription(answer.desc))

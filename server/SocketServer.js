@@ -53,21 +53,23 @@ class SocketServer {
 
 				case 'sendAnswer':
 					this.removeOffer(action.data.id);
-					let nodes = Object.keys(this.peers).map(key => ({id: key}));
+					let nodes = Object.keys(this.peers).map(key => ({ id: +key }));
 					this.links.push({
 						source: action.data.uuid,
-						destination: action.data.target
+						target: action.data.target
 					});
 					this.sendMessage({
 						type: 'answer',
-						data: Object.assign({}, action.data, {
+						data: action.data
+					}, this.peers[action.data.target]);
+
+					this.sendMessage({
+						type: 'overview',
+						data: {
 							nodes,
 							links: this.links
-						})
-					},
-						connection,
-						this.peers[action.data.target]
-					);
+						}
+					}, connection);
 			}
 
 		});
@@ -75,12 +77,22 @@ class SocketServer {
 		connection.on('close', () => {
 			delete this.peers[currentPeer];
 			this.links = this.links.filter(link => {
-				return link.source !== currentPeer && link.destination !== currentPeer;
+				return link.source !== currentPeer && link.target !== currentPeer;
 			})
 			this.offers = this.offers.filter(offer => {
 				return offer.uuid !== currentPeer;
 			});
+
 			console.log('Peer Left', currentPeer, Object.keys(this.peers));
+			let firstPeer = this.peers[Object.keys(this.peers)[0]];
+			let nodes = Object.keys(this.peers).map(key => ({ id: +key }));
+			this.sendMessage({
+				type: 'overview',
+				data: {
+					nodes,
+					links: this.links
+				}
+			}, firstPeer);
 		});
 
 		connection.on('error', err => {
@@ -88,7 +100,7 @@ class SocketServer {
 		});
 	}
 
-	sendMessage(message, connection, client = connection) {
+	sendMessage(message, client) {
 		if (typeof message !== 'string') {
 			message = JSON.stringify(message);
 		}

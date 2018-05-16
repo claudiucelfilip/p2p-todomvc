@@ -21,10 +21,7 @@ export default class Monitor extends React.Component  {
             }
         ];
 
-       
         let links = [];
-
-
         let svg = d3.select(this.node);
 
         let simulation = d3.forceSimulation(nodes)
@@ -38,7 +35,7 @@ export default class Monitor extends React.Component  {
         let g = svg.append('g').attr('transform', `translate(${this.state.width / 2}, ${this.state.height / 2})`);
         let link = g.append('g').selectAll('.link');
         let node = g.append('g').selectAll('.node');
-        
+
         update();
 
         function update() {
@@ -64,20 +61,26 @@ export default class Monitor extends React.Component  {
         function tick(e) {
             node.attr('cx', d => d.x)
                 .attr('cy', d => d.y);
-            
+
             link.attr('x1', d => d.source.x)
                 .attr('y1', d => d.source.y)
                 .attr('x2', d => d.target.x)
                 .attr('y2', d => d.target.y)
         }
 
-        this.props.peers.subscribe(peers => {
-            nodes = [...nodes, ...peers];
+        this.props.peers.overview.subscribe(overview => {
+			nodes = overview.nodes;
+			links = overview.links.map(link => {
+				return {
+					source: nodes.find(node => node.id === link.source),
+					target: nodes.find(node => node.id === link.target),
+				}
+			})
             update();
         });
 
     }
-    
+
     render() {
         return <div className="monitor">
             <svg ref={node => this.node = node} width={this.state.width} height={this.state.height}></svg>
