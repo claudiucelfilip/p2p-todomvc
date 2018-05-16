@@ -35,6 +35,8 @@ export default class Peers {
 
 		this.local.socket.on('overview', overview => {
 			this.overview.next(overview);
+			/* Delay is needed because the latest connection may not have been initialized yet.
+			*/
 			setTimeout(() => {
 				this.broadcast('overview', overview);
 			}, 1000);
@@ -61,16 +63,6 @@ export default class Peers {
 		});
 
 		peer.init();
-			// .then(data => {
-			// 	if (data && data.nodes) {
-			// 		this.overview.next(data);
-			// 		setTimeout(() => {
-			// 			this.broadcast('overview', data);
-			// 		}, 2000);
-
-			// 	}
-			// });
-
 
 		return peer;
 	}

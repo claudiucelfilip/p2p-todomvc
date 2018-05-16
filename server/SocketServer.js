@@ -84,8 +84,10 @@ class SocketServer {
 			});
 
 			console.log('Peer Left', currentPeer, Object.keys(this.peers));
+
 			let firstPeer = this.peers[Object.keys(this.peers)[0]];
 			let nodes = Object.keys(this.peers).map(key => ({ id: +key }));
+
 			this.sendMessage({
 				type: 'overview',
 				data: {
@@ -105,7 +107,7 @@ class SocketServer {
 			message = JSON.stringify(message);
 		}
 
-		if (client.readyState === WebSocket.OPEN) {
+		if (client && client.readyState === WebSocket.OPEN) {
 			client.send(message);
 		}
 	}
