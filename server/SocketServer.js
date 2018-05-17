@@ -22,7 +22,6 @@ class SocketServer {
 		connection.on('message', message => {
 			let action = JSON.parse(message);
 
-
 			switch (action.type) {
 				case 'peer':
 					this.peers[action.data.uuid] = connection;
@@ -44,29 +43,30 @@ class SocketServer {
 
 				case 'requestOffer':
 					console.log(this.offers.map(offer => offer.uuid));
-					let offerId = action.data && action.data.id;
 					this.sendMessage({
 						type: 'offer',
-						data: this.getOffer(offerId, currentPeer)
+						data: this.getOffer(currentPeer)
 					}, connection);
 					break;
 
 				case 'sendAnswer':
 					this.removeOffer(action.data.id);
-					let nodes = Object.keys(this.peers).map(key => ({ id: +key }));
-					this.links.push({
-						source: action.data.uuid,
-						target: action.data.target
-					});
+
 					this.sendMessage({
 						type: 'answer',
 						data: action.data
 					}, this.peers[action.data.target]);
 
+					const { uuid, target } = action.data;
+					this.links.push({
+						source: uuid,
+						target
+					});
+
 					this.sendMessage({
 						type: 'overview',
 						data: {
-							nodes,
+							nodes: this.getNodes(),
 							links: this.links
 						}
 					}, connection);
@@ -85,13 +85,12 @@ class SocketServer {
 
 			console.log('Peer Left', currentPeer, Object.keys(this.peers));
 
-			let firstPeer = this.peers[Object.keys(this.peers)[0]];
-			let nodes = Object.keys(this.peers).map(key => ({ id: +key }));
+			const firstPeer = this.peers[Object.keys(this.peers)[0]];
 
 			this.sendMessage({
 				type: 'overview',
 				data: {
-					nodes,
+					nodes: this.getNodes(),
 					links: this.links
 				}
 			}, firstPeer);
@@ -100,6 +99,10 @@ class SocketServer {
 		connection.on('error', err => {
 			console.log(err);
 		});
+	}
+
+	getNodes() {
+		return Object.keys(this.peers).map(key => ({ id: +key }));
 	}
 
 	sendMessage(message, client) {
@@ -124,15 +127,10 @@ class SocketServer {
 		return (this.offers = this.offers.filter(offer => offer.id !== id));
 	}
 
-	getOffer(id, currentPeer) {
-		var index;
-		if (id) {
-			index = this.offers.findIndex(offer => offer.id === id);
-		} else {
-			index = this.offers.findIndex(offer => offer.uuid !== currentPeer);
-		}
-		if (index == -1) {
-			return null;
+	getOffer(currentPeer) {
+		let index = this.offers.findIndex(offer => offer.uuid !== currentPeer);
+		if (index === -1) {
+			return;
 		}
 		return this.offers.splice(index, 1)[0];
 	}

@@ -4,7 +4,7 @@ import Peer from './Peer';
 
 export default class OfferPeer extends Peer {
     constructor (...args) {
-        super('offer', ...args);
+		super('offer', ...args);
     }
 
     init () {
