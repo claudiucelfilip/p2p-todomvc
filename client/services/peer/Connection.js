@@ -86,8 +86,6 @@ export default class Connection {
         }
         let type = payload.type || 'response';
 
-        payload.visited = [...payload.visited, this.localUuid];
-        // console.log('received', payload, this.handlers);
         let handlers = this.handlers[type] || [];
         [...handlers, this.defaultHandler].forEach(handler => {
             handler(payload);
@@ -150,17 +148,16 @@ export default class Connection {
         return this;
     }
 
-    send(type, message, broadcast = false, visited = []) {
-        visited = [...visited, this.localUuid];
-
+    send(type, message, broadcast = false, id = Date.now()) {
         let data = {
             type,
             message,
+            id,
             broadcast: broadcast || false,
             source: this.localUuid,
-            target: this.uuid,
-            visited
+            target: this.uuid
         };
+
         console.log('Sending to', data.target);
         if (type === 'response') {
             return this.sendChannel.send(data.blob);
@@ -173,7 +170,7 @@ export default class Connection {
         }
     }
 
-    broadcast(type, message, visited = []) {
-        this.send(type, message, true, visited);
+    broadcast(type, message, id = Date.now()) {
+        this.send(type, message, true, id);
     }
 }

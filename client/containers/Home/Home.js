@@ -39,7 +39,6 @@ class Home extends React.Component {
             }
 
             this.props.p2pStore.action(addTodo(todo));
-            this.props.addTodo(todo);
         }
     }
     render () {
