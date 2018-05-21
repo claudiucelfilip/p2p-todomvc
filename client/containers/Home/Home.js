@@ -75,7 +75,7 @@ class Home extends React.Component {
                     </ul>
                 </section>
             </section>
-            <Monitor peers={this.props.p2pStore.peers}/>
+            <Monitor peers={this.props.p2pStore.peers} uuid={this.props.p2pStore.local.uuid}/>
         </div>;
     }
 
