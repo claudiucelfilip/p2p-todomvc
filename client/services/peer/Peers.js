@@ -5,75 +5,69 @@ import { BehaviorSubject } from 'rxjs/BehaviorSubject';
 import { Observable } from 'rxjs/Observable';
 
 export default class Peers {
-	constructor(local) {
-		this.subject = new Subject();
-		this.message = new Subject();
-		this.overview = new ReplaySubject(1);
-		this.local = local;
-		this.pool = new BehaviorSubject([]);
-		this.peerFactory = new PeerFactory();
+    constructor (local) {
+        this.subject = new Subject();
+        this.message = new Subject();
+        this.overview = new ReplaySubject(1);
+        this.local = local;
+        this.pool = new BehaviorSubject([]);
+        this.peerFactory = new PeerFactory();
+        this.restrictedMessages = [];
 
-		this.PEERS_LIMIT = 3;
-	}
-
-	init() {
-		this.createPeer('offer');
-
-		Observable.interval(1500)
-			.take(2)
-			.subscribe(() => {
-				this.createPeer('ask');
-			});
-
-
-		this.message.subscribe(data => {
-			if (data.type === 'overview') {
+        this.PEERS_LIMIT = 3;
+    }
+    init () {
+        this.message.subscribe(data => {
+            if (data.type === 'overview') {
                 console.log('new overview', data);
                 this.overview.next(data.message);
             }
-		});
+        });
 
-		this.local.socket.on('overview', overview => {
-			this.overview.next(overview);
-			/* Delay is needed because the latest connection may not have been initialized yet.
-			*/
-			setTimeout(() => {
-				this.broadcast('overview', overview);
-			}, 1000);
-		});
-	}
+        this.local.socket.on('overview', overview => {
+            this.overview.next(overview);
+            console.log(overview);
+			this.broadcast('overview', overview);
+        });
 
-	createPeer(peerType) {
-		let peer = this.peerFactory.create(peerType, this.local, this.pool);
+        this.createPeer('ask');
+        this.createPeer('offer');
+    }
 
-		peer.subject.subscribe(peer => {
-			peer.on((payload) => {
-				if (payload.broadcast === true) {
-					this.broadcast(payload.type, payload.message, payload.visited);
-				}
-				this.message.next(payload);
-			});
-			this.pool.next([...this.pool.value, peer]);
-			this.subject.next(peer);
-		});
+    createPeer (peerType) {
+        let peer = this.peerFactory.create(peerType, this.local, this.pool);
 
-		peer.subject.last().subscribe(peer => {
-			this.pool.next([...this.pool.value.filter(item => item.id !== peer.id)]);
-			this.createPeer(peerType);
-		});
+        let subscription = peer.subject.subscribe(peer => {
+            peer.on((data) => {
+                if (this.restrictedMessages.indexOf(data.id) !== -1) {
+                    return;
+                }
+                this.restrictedMessages.push(data.id);
 
-		peer.init();
+                if (data.broadcast === true) {
+                    this.broadcast(data.type, data.message, data.id);
+                }
+                this.message.next(data);
+            });
+            this.pool.next([...this.pool.value, peer]);
+            this.subject.next(peer);
 
-		return peer;
-	}
+            this.createPeer(peerType);
+        });
 
-	broadcast(type, message, visited = []) {
+        peer.subject.last().subscribe(peer => {
+            this.pool.next([...this.pool.value.filter(item => item.id !== peer.id)]);
+            subscription.unsubscribe();
+        });
 
-		this.pool.value
-			.filter(peer => visited.indexOf(peer.uuid) === -1)
-			.forEach(peer => {
-				peer.broadcast(type, message, visited);
-			});
-	}
+        peer.init();
+    }
+
+    broadcast (type, message, id = Date.now() + this.local.uuid) {
+        this.pool.value
+            .forEach(peer => {
+                peer.broadcast(type, message, id);
+            });
+    }
 
 };

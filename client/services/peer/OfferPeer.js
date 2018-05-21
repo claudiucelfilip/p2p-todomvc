@@ -8,11 +8,10 @@ export default class OfferPeer extends Peer {
     }
 
     init () {
-        this.offer()
+        return this.offer()
             .then(this.sendOffer)
             .then(this.wait)
-            .then(this.connect)
-            .catch(this.errorHandler);
+            .then(this.connect);
     }
 
     offer = () => {
@@ -49,7 +48,14 @@ export default class OfferPeer extends Peer {
                 return this.peer.connection.addIceCandidate(
                     new RTCIceCandidate(answer.ice)
                 );
-            });
+            })
+            .then(() => {
+                this.local.socket.send('connected', {
+                    uuid: this.local.uuid,
+                    source: answer.uuid,
+                    target: answer.target
+                });
+            })
     }
 
     sendOffer = ([desc, ice]) => {
