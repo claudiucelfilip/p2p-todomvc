@@ -2,22 +2,27 @@ const fs = require('fs'),
 	https = require('https'),
 	http = require('http'),
 	express = require('express'),
+	Rx = require('rxjs'),
 	WebSocket = require('ws');
 
+
+
 class SocketServer {
-	constructor(server, port) {
+	constructor (server, port) {
 		this.PORT = port || 8001;
 		this.wServer = new WebSocket.Server({ server });
 
 		this.peers = {};
 		this.links = [];
+		this.newOffer = new Rx.ReplaySubject(1);
 		this.offers = [];
 
 		this.wServer.on('connection', this.onConnection.bind(this));
 	}
 
-	onConnection(connection) {
+	onConnection (connection) {
 		let currentPeer;
+		let subscriptions = [];
 
 		connection.on('message', message => {
 			let action = JSON.parse(message);
@@ -26,50 +31,60 @@ class SocketServer {
 				case 'peer':
 					this.peers[action.data.uuid] = connection;
 					currentPeer = action.data.uuid;
-					console.log('New Peer', currentPeer);
+					console.log('peer', currentPeer);
 					break;
 
 				case 'sendOffer':
 					this.offers.push(action.data);
-					console.log(this.offers.map(offer => offer.uuid));
-					this.broadcast({
-						type: 'newOffer',
-						data: {
-							id: action.data.id,
-							uuid: action.data.uuid
-						}
-					}, connection);
+					this.newOffer.next();
+					console.log('sendOffer', action.data.uuid, this.offers);
 					break;
 
 				case 'requestOffer':
-					console.log(this.offers.map(offer => offer.uuid));
-					this.sendMessage({
-						type: 'offer',
-						data: this.getOffer(currentPeer)
-					}, connection);
+					console.log('requestOffer', action.data.uuid);
+					let sub = this.newOffer
+						.map(() => this.offers.find(offer => offer.uuid !== currentPeer))
+						.filter(offer => offer)
+						.first()
+						.subscribe(offer => {
+							this.sendMessage({
+								type: 'offer',
+								data: offer
+							}, connection);
+							console.log('requestOffer - sent', offer);
+							this.offers = this.offers.filter(item => item !== offer);
+						});
+
+					subscriptions.push(sub);
+
 					break;
 
 				case 'sendAnswer':
-					this.removeOffer(action.data.id);
-
+					console.log('sendAnswer', action.data.uuid);
 					this.sendMessage({
 						type: 'answer',
 						data: action.data
 					}, this.peers[action.data.target]);
+					break;
 
-					const { uuid, target } = action.data;
+				case 'connected':
+					const { source, target } = action.data;
 					this.links.push({
-						source: uuid,
+						source,
 						target
 					});
+					console.log('connected', this.links);
 
 					this.sendMessage({
 						type: 'overview',
 						data: {
 							nodes: this.getNodes(),
-							links: this.links
+							links: this.links,
+							offers: this.offers
 						}
 					}, connection);
+					
+					break;
 			}
 
 		});
@@ -83,15 +98,17 @@ class SocketServer {
 				return offer.uuid !== currentPeer;
 			});
 
-			console.log('Peer Left', currentPeer, Object.keys(this.peers));
+			subscriptions.forEach(sub => sub.unsubscribe());
+
+			console.log('close', currentPeer, Object.keys(this.peers), this.links);
 
 			const firstPeer = this.peers[Object.keys(this.peers)[0]];
-
 			this.sendMessage({
 				type: 'overview',
 				data: {
 					nodes: this.getNodes(),
-					links: this.links
+					links: this.links,
+					offers: this.offers
 				}
 			}, firstPeer);
 		});
@@ -101,11 +118,11 @@ class SocketServer {
 		});
 	}
 
-	getNodes() {
+	getNodes () {
 		return Object.keys(this.peers).map(key => ({ id: +key }));
 	}
 
-	sendMessage(message, client) {
+	sendMessage (message, client) {
 		if (typeof message !== 'string') {
 			message = JSON.stringify(message);
 		}
@@ -115,24 +132,12 @@ class SocketServer {
 		}
 	}
 
-	broadcast(message, connection) {
+	broadcast (message, connection) {
 		this.wServer.clients.forEach(client => {
 			if (client !== connection && client.readyState === WebSocket.OPEN) {
 				this.sendMessage(message, connection, client);
 			}
 		});
-	}
-
-	removeOffer(id) {
-		return (this.offers = this.offers.filter(offer => offer.id !== id));
-	}
-
-	getOffer(currentPeer) {
-		let index = this.offers.findIndex(offer => offer.uuid !== currentPeer);
-		if (index === -1) {
-			return;
-		}
-		return this.offers.splice(index, 1)[0];
 	}
 }
 module.exports = SocketServer;

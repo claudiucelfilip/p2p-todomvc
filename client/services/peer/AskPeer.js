@@ -10,32 +10,30 @@ export default class AskPeer extends Peer {
     }
 
     init () {
-        this.ask()
+        return this.ask()
             .then(this.answer)
-            .then(this.sendAnswer)
-            .catch(this.errorHandler);
+            .then(this.sendAnswer);
     }
 
     ask = () => {
-        let intv = new Subject();
+        this.local.socket.send('requestOffer', {
+            uuid: this.local.uuid
+        });
 
-        Observable.interval(3000)
-            .takeUntil(intv)
-            .subscribe(() => {
-                console.log('asking for offer');
-                this.local.socket.send('requestOffer');
-            });
-
-        return new Promise(resolve => {
-            this.local.socket.on('offer', offer => {
+        return new Promise((resolve, reject) => {
+            let handle = offer => {
                 let pool = this.restrictedPool.value;
                 let restrictedUuids = pool.map(peer => peer.uuid);
-
-                if (offer && restrictedUuids.indexOf(offer.uuid) === -1) {
+                
+                if (restrictedUuids.indexOf(offer.uuid) === -1) {
+                    this.local.socket.off('offer', handle);
                     resolve(offer);
-                    intv.next(true);
+                } else {
+                    this.local.socket.send('sendOffer', offer);
                 }
-            });
+            };
+
+            this.local.socket.on('offer', handle);
         });
     }
 
