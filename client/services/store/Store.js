@@ -9,7 +9,8 @@ import { zip } from 'rxjs/observable/zip';
 import { switchMap } from 'rxjs/operators';
 
 export const withStore = (store) => (Component, LoadingComponent) => {
-    store.init();
+	store.init();
+
     return class extends React.Component {
         constructor (props) {
             super(props);
@@ -29,7 +30,7 @@ export const withStore = (store) => (Component, LoadingComponent) => {
             if (!this.state.storeReady && LoadingComponent) {
                 return <LoadingComponent {...this.props} />;
             }
-            
+
             return <Component p2pStore={store} {...this.props} />
         }
     }
@@ -91,14 +92,14 @@ export default class Store {
             id,
             payload
         };
-        
+
 
         this.db.create(action);
 
         if (skipBroadcast) {
             return;
         }
-        
+
         this.peers.broadcast('op', action);
         this.previousOpId = id;
     }

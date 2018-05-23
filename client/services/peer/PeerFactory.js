@@ -3,7 +3,6 @@ import AskPeer from './AskPeer';
 
 export default class PeerFactory {
     create (peerType, ...args) {
-        console.log(...args);
         switch (peerType) {
             case 'offer':
                 return new OfferPeer(...args);

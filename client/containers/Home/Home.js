@@ -5,38 +5,44 @@ import { connect } from 'react-redux';
 import 'rxjs/add/operator/filter';
 
 class Home extends React.Component {
-    constructor (...args) {
-        super(...args);
+	constructor(...args) {
+		super(...args);
 
-        this.state = {
-            message: ''
-        };
+		this.state = {
+			message: ''
+		};
+//
+		let messages = this.props.p2pStore.peers.message.filter(data => data.type === 'action');
 
-        let messages = this.props.p2pStore.peers.message.filter(data => data.type === 'action');
+		let addTodosRelay = messages
+			.filter(data => data.message.type === ADD_TODOS)
+			.first()
+			.subscribe(data => {
+				this.props.dispatch(data.message);
+			});
 
-        messages
-            .filter(data => data.message.type === ADD_TODOS)
-            .take(1)
-            .subscribe(data => {
-                this.props.dispatch(data.message);
-            });
+		let genericRelay = messages
+			.filter(data => data.message.type !== ADD_TODOS)
+			.subscribe(data => {
+				this.props.dispatch(data.message);
+			});
 
-        messages
-            .filter(data => data.message.type !== ADD_TODOS)
-            .subscribe(data => {
-                this.props.dispatch(data.message);
-            });
+		let initialAddTodosRelay = this.props.p2pStore.peers.subject
+			.subscribe(peer => {
+				peer.send('action', addTodos(this.props.todos));
+			});
 
-        this.props.p2pStore.peers.subject.subscribe(peer => {
-            peer.send('action', addTodos(this.props.todos));
-        });
-    }
+		this.subscriptions = [addTodosRelay, genericRelay, initialAddTodosRelay];
 
-    onNewTodo = (event) => {
-        if (event.key === 'Enter') {
-            let todo = {
-                text: event.target.value
-            }
+	}
+	componentWillUnmount() {
+		this.subscriptions.forEach(subscription => subscription.unsubscribe());
+	}
+	onNewTodo = (event) => {
+		if (event.key === 'Enter') {
+			let todo = {
+				text: event.target.value
+			}
 
 			this.props.p2pStore.action(addTodo(todo));
 		}
@@ -82,18 +88,18 @@ class Home extends React.Component {
 }
 
 let mapStateToProps = state => {
-    return {
-        todos: state.todos
-    }
+	return {
+		todos: state.todos
+	}
 }
 
 let mapDispatchToProps = dispatch => {
-    return {
-        addTodo: payload => {
-            dispatch(addTodo(payload));
-        },
-        dispatch
-    }
+	return {
+		addTodo: payload => {
+			dispatch(addTodo(payload));
+		},
+		dispatch
+	}
 }
 
 export default connect(mapStateToProps, mapDispatchToProps)(Home);

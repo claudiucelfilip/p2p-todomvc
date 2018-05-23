@@ -34,7 +34,8 @@ export default class Connection {
                 }
             ]
         };
-    }
+	}
+
     getIceCandidate() {
         return new Promise((resolve, reject) => {
             this.connection.onicecandidate = event => {
@@ -55,7 +56,8 @@ export default class Connection {
             subject.next(this);
         };
         return subject;
-    }
+	}
+
     onSendChannelOpen() {
         let subject = new Subject();
         this.sendChannel = this.connection.createDataChannel(
@@ -90,7 +92,8 @@ export default class Connection {
         [...handlers, this.defaultHandler].forEach(handler => {
             handler(payload);
         });
-    }
+	}
+
     onReceiveChannelOpen() {
         let subject = new Subject();
         this.connection.ondatachannel = event => {

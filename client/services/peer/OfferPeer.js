@@ -38,10 +38,6 @@ export default class OfferPeer extends Peer {
     }
 
     connect = (answer) => {
-        // if (!answer.desc || answer.uuid === this.local.uuid) {
-        //     return;
-        // }
-
         return this.peer.connection
             .setRemoteDescription(new RTCSessionDescription(answer.desc))
             .then(() => {
@@ -59,12 +55,14 @@ export default class OfferPeer extends Peer {
     }
 
     sendOffer = ([desc, ice]) => {
-        console.log('offer sent', desc, ice);
-        this.local.socket.send('sendOffer', {
+		let offer = {
             uuid: this.local.uuid,
             desc,
             ice,
             id: this.peer.id
-        });
+		};
+
+        console.log('offer sent', offer);
+        this.local.socket.send('sendOffer', offer);
     }
 }
