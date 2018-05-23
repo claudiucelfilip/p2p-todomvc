@@ -11,7 +11,8 @@ export default class OfferPeer extends Peer {
         return this.offer()
             .then(this.sendOffer)
             .then(this.wait)
-            .then(this.connect);
+			.then(this.connect)
+			.catch(this.errorHandler);
     }
 
     offer = () => {
@@ -28,12 +29,18 @@ export default class OfferPeer extends Peer {
 
     wait = () => {
         return new Promise((resolve) => {
-            this.local.socket.once('answer', answer => {
-                console.log('received answer', answer);
-                this.peer.uuid = answer.uuid;
+            let handle = answer => {
 
-                resolve(answer);
-            });
+				if (this.restrictedUuids.value.indexOf(answer.uuid) === -1) {
+					console.log('received answer', answer);
+					this.peer.uuid = answer.uuid;
+					// this.restrictUuid(this.peer.uuid);
+					this.local.socket.off('answer', handle);
+					resolve(answer);
+				}
+			};
+//
+			this.local.socket.on('answer', handle);
         });
     }
 
@@ -44,14 +51,7 @@ export default class OfferPeer extends Peer {
                 return this.peer.connection.addIceCandidate(
                     new RTCIceCandidate(answer.ice)
                 );
-            })
-            .then(() => {
-                this.local.socket.send('connected', {
-                    uuid: this.local.uuid,
-                    source: answer.uuid,
-                    target: answer.target
-                });
-            })
+			});
     }
 
     sendOffer = ([desc, ice]) => {

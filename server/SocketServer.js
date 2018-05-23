@@ -40,8 +40,8 @@ class SocketServer {
 					break;
 
 				case 'sendOffer':
-					this.offers.unshift(action.data);
-					this.newOffer.next();
+					this.addOffer(action.data);
+
 					console.log('sendOffer', action.data.uuid, this.offers.map(offer => offer.uuid));
 					break;
 
@@ -53,7 +53,7 @@ class SocketServer {
 					if (!this.offers.length && this.peers[0]) {
 						this.sendMessage({
 							type: 'createOffer'
-						}, this.peers[0].connection);
+						}, this.peers[this.peers.length - 1].connection);
 					}
 					let sub = this.newOffer
 						.map(() =>
@@ -63,42 +63,38 @@ class SocketServer {
 										.map(peer => peer.uuid)
 										.indexOf(offer.uuid) === -1;
 								})
+								.slice()
+								.reverse()
 								.find(offer => targetUuids.indexOf(offer.uuid) !== -1 || restrictedUuids.indexOf(offer.uuid) === -1)
 						)
 						.filter(offer => offer)
 						.first()
 						.subscribe(offer => {
+							console.log(currentUuid);
 							this.sendMessage({
 								type: 'offer',
 								data: offer
 							}, connection);
 
-
-							let sourcePeer = this.getPeer(offer.uuid);
-							let targetPeer = this.getPeer(currentUuid);
-
-							if (sourcePeer && targetPeer) {
-								sourcePeer.peers.push(targetPeer);
-								targetPeer.peers.push(sourcePeer);
-							}
-
 							console.log('requestOffer - sent', offer.uuid);
-							this.offers = this.offers.filter(item => item !== offer);
 						});
 
 					subscriptions.push(sub);
 					break;
-
+				case 'usedOffer':
+					let offer = action.data;
+					this.offers = this.offers.filter(item => item.id !== offer.id);
+					break;
 				case 'sendAnswer':
 					console.log('sendAnswer', action.data.uuid);
 
-					let targetPeer = this.getPeer(action.data.target);
+					let peer = this.getPeer(action.data.target);
 
-					if (targetPeer) {
+					if (peer) {
 						this.sendMessage({
 							type: 'answer',
 							data: action.data
-						}, targetPeer.connection);
+						}, peer.connection);
 					}
 
 					break;
@@ -107,13 +103,22 @@ class SocketServer {
 					const { source, target } = action.data;
 					console.log('connected', this.getPeers());
 
-					this.sendMessage({
-						type: 'overview',
-						data: {
-							nodes: this.getPeers()
-						}
-					}, connection);
+					let sourcePeer = this.getPeer(source);
+					let targetPeer = this.getPeer(target);
 
+					if (sourcePeer && targetPeer) {
+						if (sourcePeer.peers.indexOf(targetPeer) === -1) {
+							sourcePeer.peers.push(targetPeer);
+						}
+					}
+
+					this.checkDisconnectedComponents(this.getPeer(currentUuid));
+					this.sendOverview();
+
+					break;
+
+				case 'forceCheck':
+					this.checkDisconnectedComponents(this.getPeer(currentUuid));
 					break;
 			}
 
@@ -121,25 +126,14 @@ class SocketServer {
 
 		connection.on('close', () => {
 			this.deletePeer(currentUuid);
+			this.offers = this.offers.filter(offer => offer.uuid !== currentUuid);
 
 			subscriptions.forEach(sub => sub.unsubscribe());
 
 			console.log('close', currentUuid, this.getPeers());
 
-			let firstPeer = this.peers[0];
-
-			if (!firstPeer) {
-				return;
-			}
-
-			this.checkDisconnectedComponents(firstPeer);
-
-			this.sendMessage({
-				type: 'overview',
-				data: {
-					nodes: this.getPeers()
-				}
-			}, firstPeer.connection);
+			this.checkDisconnectedComponents();
+			this.sendOverview();
 		});
 
 		connection.on('error', err => {
@@ -147,26 +141,51 @@ class SocketServer {
 		});
 	}
 
-	checkDisconnectedComponents(peer) {
+	sendOverview() {
+		this.peers.forEach(peer => {
+			this.sendMessage({
+				type: 'overview',
+				data: {
+					nodes: this.getPeers()
+				}
+			}, peer.connection);
+		});
+	}
+
+	addOffer(offer) {
+		if (this.offers.map(offer => offer.uuid).indexOf(offer.uuid) === -1) {
+			this.offers.unshift(offer);
+			this.newOffer.next();
+		}
+	}
+
+	checkDisconnectedComponents(peer = this.peers[0]) {
+		if (!peer) {
+			return;
+		}
 		let components = this.getConnectedPeers(peer);
 
 		if (components.length > 1) {
 			components.reduce((prev, curr) => {
-				prev.forEach(peer => {
-					this.sendMessage({
-						type: 'createOffer'
-					}, peer.connection);
-				});
-
-				curr.slice(0, prev.length)
-					.forEach(peer => {
+				prev
+					.filter(peer => this.offers.map(offer => offer.uuid).indexOf(peer.uuid) === -1)
+					.forEach((peer, index) => {
 						this.sendMessage({
-							type: 'createAsk',
-							data: {
-								targetUuids: prev.map(prev => prev.uuid)
-							}
+							type: 'createOffer'
 						}, peer.connection);
+
+						return peer;
 					});
+
+				curr.forEach((peer, index) => {
+					this.sendMessage({
+						type: 'createAsk',
+						data: {
+							targetUuids: prev.map(prev => prev.uuid)
+						}
+					}, peer.connection);
+
+				});
 				return curr;
 			});
 		}
@@ -199,13 +218,14 @@ class SocketServer {
 	}
 
 	deletePeer(uuid) {
-		this.peers = this.peers.filter(peer => peer.uuid !== uuid);
-		this.peers.forEach(peer => {
-			peer.peers = peer.peers
-				.filter(peer => peer.uuid !== uuid);
-		});
+		this.peers = this.peers
+			.map(peer => {
+				peer.peers = peer.peers
+					.filter(peer => peer.uuid !== uuid);
 
-		this.offers = this.offers.filter(offer => offer.uuid !== uuid);
+				return peer;
+			})
+			.filter(peer => peer.uuid !== uuid);
 	}
 
 	getPeer(uuid) {

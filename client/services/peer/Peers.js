@@ -11,27 +11,26 @@ export default class Peers {
 		this.overview = new ReplaySubject(1);
 		this.local = local;
 		this.pool = new BehaviorSubject([]);
+		this.restrictedUuids = new BehaviorSubject([this.local.uuid]);
 		this.peerFactory = new PeerFactory();
 		this.restrictedMessages = [];
 
-		this.PEERS_LIMIT = 1;
+		this.PEERS_LIMIT = 3;
 	}
 	init() {
-		this.message
-			.filter(({ type }) => type === 'overview')
-			.subscribe(data => {
-				console.log('new overview', data);
-				this.overview.next(data.message);
-			});
-
 		this.local.socket.on('overview', overview => {
-			// this.overview.next(overview);
-
-			console.log(overview);
-			setTimeout(() => {
-				this.broadcast('overview', overview);
-			}, 1000);
+			this.overview.next(overview);
+			console.log('new overview', overview);
 		});
+
+		Observable.interval(6000)
+			.withLatestFrom(this.pool)
+			.map(([_, pool]) => pool)
+			.filter(pool => !pool.length)
+			.subscribe(() => {
+				console.log('send forceCheck');
+				this.local.socket.send('forceCheck');
+			});
 
 		this.local.socket.on('createAsk', data => {
 			console.log('createAsk received', data);
@@ -44,14 +43,15 @@ export default class Peers {
 		});
 
 		this.createPeer('ask');
-		this.createPeer('offer');
 	}
 
 	createPeer(peerType, targets) {
-		let peer = this.peerFactory.create(peerType, this.local, this.pool);
+		let peer = this.peerFactory.create(peerType, this.local, this.restrictedUuids);
 
-		peer.subject
-			.first()
+		let firstPeerConnection = peer.subject
+			.first();
+
+		firstPeerConnection
 			.subscribe(peer => {
 				peer.on((data) => {
 					if (this.restrictedMessages.indexOf(data.id) !== -1) {
@@ -67,24 +67,30 @@ export default class Peers {
 				this.pool.next([...this.pool.value, peer]);
 				this.subject.next(peer);
 
-				// if (this.pool.value.length < this.PEERS_LIMIT) {
+				this.local.socket.send('connected', {
+                    source: this.local.uuid,
+                    target: peer.uuid
+				});
+
 				this.createPeer(peerType);
-				// }
 			});
 
 		peer.subject
 			.last()
 			.subscribe(peer => {
-				this.pool.next(this.pool.value.filter(item => item.id !== peer.id));
-				// this.createPeer(peerType);
+				console.log(this.pool.value);
+				this.pool.next(this.pool.value.filter(item => item.uuid !== peer.uuid));
+				this.createPeer(peerType);
 			});
 
 		this.pool
-			.filter(pool => pool.length < this.PEERS_LIMIT || targets)
+			.filter(pool => pool.length <= this.PEERS_LIMIT || targets)
 			.first()
 			.subscribe(() => {
 				peer.init(targets);
 			});
+
+		return firstPeerConnection;
 	}
 
 	broadcast(type, message, id = Date.now() + this.local.uuid) {
