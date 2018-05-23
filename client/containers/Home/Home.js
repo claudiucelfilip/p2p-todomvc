@@ -38,45 +38,46 @@ class Home extends React.Component {
                 text: event.target.value
             }
 
-            this.props.p2pStore.action(addTodo(todo));
-        }
-    }
-    render () {
-        return <div className="home-container">
-            <section className="todoapp">
-                <header className="header">
-                    <h1>todos</h1>
-                    <input className="new-todo" placeholder="What needs to be done?" autoFocus onKeyPress={this.onNewTodo} />
-                </header>
-                <section className="main">
-                    <input id="toggle-all" className="toggle-all" type="checkbox" />
-                    <label htmlFor="toggle-all">Mark all as complete</label>
-                    <ul className="todo-list">
-                        {this.props.todos.map((todo, index) => {
-                            return <li key={index}>
-                                <div className="view">
-                                    <input className="toggle" type="checkbox" />
-                                    <label>{todo.text}</label>
-                                    <button className="destroy"></button>
-                                </div>
-                                <input className="edit" defaultValue={todo.text} />
-                            </li>
-                        })}
-                        <li className="completed">
-                            <div className="view">
-                                <input className="toggle" type="checkbox" defaultChecked />
-                                <label>Taste JavaScript</label>
-                                <button className="destroy"></button>
-                            </div>
-                            <input className="edit" defaultValue="Create a TodoMVC template" />
-                        </li>
+			this.props.p2pStore.action(addTodo(todo));
+		}
+	}
+	render() {
+		return <div className="home-container">
+			<Monitor peers={this.props.p2pStore.peers} uuid={this.props.p2pStore.local.uuid} />
+			<section className="todoapp">
+				<header className="header">
+					<h1>todos</h1>
+					<input className="new-todo" placeholder="What needs to be done?" autoFocus onKeyPress={this.onNewTodo} />
+				</header>
+				<section className="main">
+					<input id="toggle-all" className="toggle-all" type="checkbox" />
+					<label htmlFor="toggle-all">Mark all as complete</label>
+					<ul className="todo-list">
+						{this.props.todos.map((todo, index) => {
+							return <li key={index}>
+								<div className="view">
+									<input className="toggle" type="checkbox" />
+									<label>{todo.text}</label>
+									<button className="destroy"></button>
+								</div>
+								<input className="edit" defaultValue={todo.text} />
+							</li>
+						})}
+						<li className="completed">
+							<div className="view">
+								<input className="toggle" type="checkbox" defaultChecked />
+								<label>Taste JavaScript</label>
+								<button className="destroy"></button>
+							</div>
+							<input className="edit" defaultValue="Create a TodoMVC template" />
+						</li>
 
-                    </ul>
-                </section>
-            </section>
-            <Monitor peers={this.props.p2pStore.peers} uuid={this.props.p2pStore.local.uuid}/>
-        </div>;
-    }
+					</ul>
+				</section>
+			</section>
+
+		</div>;
+	}
 
 }
 
