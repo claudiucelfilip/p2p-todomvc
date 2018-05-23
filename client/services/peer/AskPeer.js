@@ -9,22 +9,22 @@ export default class AskPeer extends Peer {
         super('ask', ...args);
     }
 
-    init () {
-        return this.ask()
+    init (targets) {
+        return this.ask(targets)
             .then(this.answer)
             .then(this.sendAnswer);
     }
 
-    ask = () => {
+    ask = (targetUuids) => {
         this.local.socket.send('requestOffer', {
-            uuid: this.local.uuid
+			uuid: this.local.uuid,
+			targetUuids
         });
-
         return new Promise((resolve, reject) => {
             let handle = offer => {
                 let pool = this.restrictedPool.value;
                 let restrictedUuids = pool.map(peer => peer.uuid);
-                
+
                 if (restrictedUuids.indexOf(offer.uuid) === -1) {
                     this.local.socket.off('offer', handle);
                     resolve(offer);
@@ -60,14 +60,15 @@ export default class AskPeer extends Peer {
     }
 
     sendAnswer = ([desc, ice, offer]) => {
-        console.log('answer sent', desc, ice);
-        this.local.socket.send('sendAnswer', {
+		let answer = {
             uuid: this.local.uuid,
             target: offer.uuid,
             desc,
             ice,
             offerId: offer.id,
             answerId: this.peer.id
-        });
+        };
+        console.log('answer sent', answer);
+        this.local.socket.send('sendAnswer', answer);
     }
 }
