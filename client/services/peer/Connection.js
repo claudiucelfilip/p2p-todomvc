@@ -2,6 +2,7 @@ import { Subject } from 'rxjs/Subject'
 import { Observable } from 'rxjs/Observable';
 import 'rxjs/add/observable/zip';
 import 'rxjs/add/operator/map';
+import { curry } from 'ramda';
 
 export default class Connection {
     constructor(type, localUuid) {
@@ -177,3 +178,5 @@ export default class Connection {
         this.send(type, message, true, id);
     }
 }
+
+export const createConnection = curry((type, uuid) => new Connection(type, uuid));
