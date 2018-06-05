@@ -3,7 +3,6 @@
   "scripts": {
     "build": "webpack --mode development",
     "start": "webpack-dev-server --https --mode development",
-    "p2p-server": "node server/p2p-server.js",
     "server": "node server"
   },
   "babel": {
