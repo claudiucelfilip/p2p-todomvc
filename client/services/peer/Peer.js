@@ -10,19 +10,25 @@ export default class Peer {
         this.peer = new Connection(peerType, local.uuid);
         this.subject = new ReplaySubject(1);
 
-        this.peer.onOpen
-            .first()
-            .subscribe(peer => {
-                this.subject.next(peer);
-                this.restrictUuid(peer.uuid);
-            });
+		this.peer.onOpen.then((peer) => {
+			this.restrictUuid(peer.uuid);
+		});
+		this.peer.onClose.then((peer) => {
+			this.releaseUuid(peer.uuid);
+		});
+        // this.peer.onOpen
+        //     .pipe(first())
+        //     .subscribe(peer => {
+        //         this.subject.next(peer);
+        //         this.restrictUuid(peer.uuid);
+        //     });
 
-        this.peer.onClose
-            .first()
-            .subscribe(peer => {
-                this.subject.complete(peer);
-                this.releaseUuid(peer.uuid);
-            });
+        // this.peer.onClose
+		// 	.pipe(first())
+        //     .subscribe(peer => {
+        //         this.subject.complete(peer);
+        //         this.releaseUuid(peer.uuid);
+        //     });
         console.log(`CREATING ${peerType}`, local.uuid);
     }
 
@@ -38,56 +44,3 @@ export default class Peer {
         console.error(err);
     }
 }
-
-
-
-const onOpen = curry((handle, connection) => {
-    connection.onOpen
-        .pipe(first())
-        .subscribe(handle);
-
-    return connection;
-});
-
-const onClose = curry((handle, connection) => {
-    connection.onClose
-        .pipe(first())
-        .subscribe(handle);
-
-    return connection;
-});
-
-const onOpenHandle = (connection) => {
-    this.subject.next(peer);
-    this.restrictUuid(peer.uuid);
-};
-
-const onCloseHandle = (connection) => {
-    this.subject.complete(peer);
-    this.releaseUuid(peer.uuid);
-};
-
-const createPeerConnection = curry((type, localUuid) => {
-    return compose(
-        onClose(onCloseHandle),
-        onOpen(onOpenHandle),
-        createConnection(type)
-    )(localUuid);
-});
-
-
-const createPeer = curry((type, localUuid, restrictedUuids) => {
-    return compose(
-        assoc('restrictedUuids', restrictedUuids),
-        createPeerConnection(type)
-    )(localUuid);
-});
-
-const createRestrictedUuids = (initialUuids = []) => {
-    return new BehaviorSubject(initialUuids);
-};
-
-// let peer = createPeerConnection(444);
-
-
-console.log('X', createPeer('ask', 143, []));

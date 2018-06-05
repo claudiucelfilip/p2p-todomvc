@@ -1,9 +1,43 @@
-import PeerFactory from './PeerFactory';
 import { Subject } from 'rxjs/Subject';
 import { ReplaySubject } from 'rxjs/ReplaySubject';
 import { BehaviorSubject } from 'rxjs/BehaviorSubject';
 import { Observable } from 'rxjs/Observable';
+import * as R from 'ramda';
+import { compose, composeP, curry, __, assoc } from 'ramda';
+import { createOfferPeer, initOfferPeer } from './OfferPeer';
+import { createAskPeer, initAskPeer } from './AskPeer';
 
+const subscribeToPeerStream = R.curry((handle, stream) => {
+	return stream.subscribe(handle);
+});
+
+const createPeer = curry((local, type) => {
+	switch (type) {
+		case 'offer':
+			return createOfferPeer(local);
+		case 'ask':
+			return createAskPeer(local);
+	}
+});
+
+const initPeer = curry((targets, peer) => {
+	switch (peer.type) {
+		case 'offer':
+			return initOfferPeer(targets, peer);
+		case 'ask':
+			return initAskPeer(targets, peer);
+	}
+})
+
+const firstPeerConnection = R.compose(
+	R.invoker(0, 'first'),
+	R.prop('subject')
+);
+
+const setRestrictions = curry((uuids, peer) => {
+	peer['restrictedUuids'] = uuids;
+	return peer;
+});
 export default class Peers {
 	constructor(local) {
 		this.subject = new Subject();
@@ -12,9 +46,7 @@ export default class Peers {
 		this.local = local;
 		this.pool = new BehaviorSubject([]);
 		this.restrictedUuids = new BehaviorSubject([this.local.uuid]);
-		this.peerFactory = new PeerFactory();
 		this.restrictedMessages = [];
-
 		this.PEERS_LIMIT = 3;
 	}
 	init() {
@@ -39,20 +71,23 @@ export default class Peers {
 
 		this.local.socket.on('createOffer', data => {
 			console.log('createOffer received');
-			this.createPeer('offer', true);
+			this.createPeer('offer');
 		});
 
 		this.createPeer('ask');
 	}
 
 	createPeer(peerType, targets) {
-		let peer = this.peerFactory.create(peerType, this.local, this.restrictedUuids);
+		const getPeer = compose(
+			setRestrictions(this.restrictedUuids),
+			createPeer(this.local)
+		);
 
-		let firstPeerConnection = peer.subject
-			.first();
+		const peer = getPeer(peerType);
+		const initializedPeer = initPeer(targets, peer);
 
-		firstPeerConnection
-			.subscribe(peer => {
+		initializedPeer
+			.then((peer) => {
 				peer.on((data) => {
 					if (this.restrictedMessages.indexOf(data.id) !== -1) {
 						return;
@@ -64,33 +99,17 @@ export default class Peers {
 					}
 					this.message.next(data);
 				});
+
 				this.pool.next([...this.pool.value, peer]);
 				this.subject.next(peer);
 
 				this.local.socket.send('connected', {
-                    source: this.local.uuid,
-                    target: peer.uuid
+					source: this.local.uuid,
+					target: peer.uuid
 				});
 
 				this.createPeer(peerType);
 			});
-
-		peer.subject
-			.last()
-			.subscribe(peer => {
-				console.log(this.pool.value);
-				this.pool.next(this.pool.value.filter(item => item.uuid !== peer.uuid));
-				this.createPeer(peerType);
-			});
-
-		this.pool
-			.filter(pool => pool.length <= this.PEERS_LIMIT || targets)
-			.first()
-			.subscribe(() => {
-				peer.init(targets);
-			});
-
-		return firstPeerConnection;
 	}
 
 	broadcast(type, message, id = Date.now() + this.local.uuid) {

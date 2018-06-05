@@ -1,68 +1,82 @@
 import Connection from './Connection';
 import { ReplaySubject } from 'rxjs/ReplaySubject';
 import Peer from './Peer';
+import { curry, pipeP, __, tap } from 'ramda';
 
-export default class OfferPeer extends Peer {
-    constructor (...args) {
-		super('offer', ...args);
-    }
+const offer = curry((peer, targets) => {
+	return peer.connection.createOffer()
+		.then(desc => {
+			let promiseDesc = peer.connection
+				.setLocalDescription(desc)
+				.then(() => desc);
 
-    init () {
-        return this.offer()
-            .then(this.sendOffer)
-            .then(this.wait)
-			.then(this.connect)
-			.catch(this.errorHandler);
-    }
+			let promiseIce = peer.getIceCandidate();
+			return Promise.all([promiseDesc, promiseIce]);
+		});
+});
 
-    offer = () => {
-        return this.peer.connection.createOffer()
-            .then(desc => {
-                let promiseDesc = this.peer.connection
-                    .setLocalDescription(desc)
-                    .then(() => desc);
+const wait = curry((peer, __) => {
+	return new Promise((resolve) => {
+		let handle = answer => {
 
-                let promiseIce = this.peer.getIceCandidate();
-                return Promise.all([promiseDesc, promiseIce]);
-            });
-    }
-
-    wait = () => {
-        return new Promise((resolve) => {
-            let handle = answer => {
-
-				if (this.restrictedUuids.value.indexOf(answer.uuid) === -1) {
-					console.log('received answer', answer);
-					this.peer.uuid = answer.uuid;
-					// this.restrictUuid(this.peer.uuid);
-					this.local.socket.off('answer', handle);
-					resolve(answer);
-				}
-			};
-//
-			this.local.socket.on('answer', handle);
-        });
-    }
-
-    connect = (answer) => {
-        return this.peer.connection
-            .setRemoteDescription(new RTCSessionDescription(answer.desc))
-            .then(() => {
-                return this.peer.connection.addIceCandidate(
-                    new RTCIceCandidate(answer.ice)
-                );
-			});
-    }
-
-    sendOffer = ([desc, ice]) => {
-		let offer = {
-            uuid: this.local.uuid,
-            desc,
-            ice,
-            id: this.peer.id
+			if (peer.restrictedUuids.value.indexOf(answer.uuid) === -1) {
+				console.log('received answer', answer);
+				peer.uuid = answer.uuid;
+				// peer.restrictUuid(peer.uuid);
+				peer.local.socket.off('answer', handle);
+				resolve(answer);
+			}
 		};
+		peer.local.socket.on('answer', handle);
+	});
+});
 
-        console.log('offer sent', offer);
-        this.local.socket.send('sendOffer', offer);
-    }
-}
+const connect = curry((peer, answer) => {
+	return peer.connection
+		.setRemoteDescription(new RTCSessionDescription(answer.desc))
+		.then(() => {
+			return peer.connection.addIceCandidate(
+				new RTCIceCandidate(answer.ice)
+			);
+		});
+});
+
+const sendOffer = curry((peer, [desc, ice]) => {
+	let offer = {
+		uuid: peer.local.uuid,
+		desc,
+		ice,
+		id: peer.id
+	};
+
+	console.log('offer sent', offer);
+	peer.local.socket.send('sendOffer', offer);
+	return peer;
+});
+
+const open = curry((peer, __) => {
+	return peer.onOpen.then(() => peer);
+});
+
+export const createOfferPeer = local => {
+	return new Connection('offer', local);
+};
+
+
+export const initOfferPeer = curry((targets, peer) => {
+	const offerPeer = offer(peer);
+	const waitPeer = wait(peer);
+	const connectPeer = connect(peer);
+	const sendOfferPeer = sendOffer(peer);
+	const openPeer = open(peer);
+	console.log('INIT OfferPeer', peer);
+
+
+	return pipeP(
+		offerPeer,
+		sendOfferPeer,
+		waitPeer,
+		connectPeer,
+		openPeer
+	)(targets);
+});
