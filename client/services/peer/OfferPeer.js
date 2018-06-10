@@ -1,4 +1,4 @@
-import Connection from './Connection';
+import { createConnection, getIceCandidate } from './Connection';
 import { ReplaySubject } from 'rxjs/ReplaySubject';
 import Peer from './Peer';
 import { curry, pipeP, __, tap } from 'ramda';
@@ -10,7 +10,7 @@ const offer = curry((peer, targets) => {
 				.setLocalDescription(desc)
 				.then(() => desc);
 
-			let promiseIce = peer.getIceCandidate();
+			 let promiseIce = getIceCandidate(peer);
 			return Promise.all([promiseDesc, promiseIce]);
 		});
 });
@@ -59,7 +59,7 @@ const open = curry((peer, __) => {
 });
 
 export const createOfferPeer = local => {
-	return new Connection('offer', local);
+	return createConnection('offer', local);
 };
 
 

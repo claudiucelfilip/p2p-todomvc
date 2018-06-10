@@ -29,7 +29,7 @@ class Home extends React.Component {
 
 		let initialAddTodosRelay = this.props.p2pStore.peers.subject
 			.subscribe(peer => {
-				peer.send('action', addTodos(this.props.todos));
+				this.props.p2pStore.peers.send(peer, 'action', addTodos(this.props.todos));
 			});
 
 		this.subscriptions = [addTodosRelay, genericRelay, initialAddTodosRelay];

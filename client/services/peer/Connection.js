@@ -3,193 +3,208 @@ import { Observable } from 'rxjs/Observable';
 import 'rxjs/add/observable/zip';
 import 'rxjs/add/operator/map';
 import { curry } from 'ramda';
+import { pipe } from 'rxjs';
 
-export default class Connection {
-	constructor(type, local) {
-		this.initConfig();
-		this.local = local;
-		this.type = type;
-		this.id = Math.floor(Math.random() * 100000);
-		this.handlers = {};
-
-		this.connection = new RTCPeerConnection(this.config);
-
-		// this.onOpen = Observable.zip(
-		//     this.onSendChannelOpen(),
-		//     this.onReceiveChannelOpen()
-		// ).map(([sendChannel, receiveChannel]) => {
-		//     return this;
-		// });
-		this.onOpen = Promise.all([
-			this.onSendChannelOpen(),
-			this.onReceiveChannelOpen()
-		]).then(() => this);
-
-		this.onClose = this.onChannelClose();
+const bootstrapPeer = curry((type, local) => {
+	return {
+		type,
+		local,
+		id: Math.floor(Math.random() * 100000),
+		handlers: {},
+		defaultHandler: () => {}
 	}
+});
 
-	initConfig() {
-		this.config = {
-			iceServers: [
-				{ urls: 'stun:stun.l.google.com:19302' },
-				{
-					urls: 'turn:192.158.29.39:3478?transport=tcp',
-					credential: 'JZEOEt2V3Qb0y27GRntt2u2PAYA=',
-					username: '28224511:1379330808'
-				}
-			]
+const addConnection = curry((config, peer) => {
+	peer.connection = new RTCPeerConnection(config);
+	return peer;
+});
+
+const addOnOpen = curry((peer) => {
+	peer.onOpen = Promise.all([
+		onSendChannelOpen(peer),
+		onReceiveChannelOpen(peer)
+	]).then(() => peer);
+
+	return peer;
+});
+
+const addOnClose = curry((peer) => {
+	peer.onClose = onChannelClose(peer);
+	return peer;
+});
+
+const addConfig = curry((config, peer) => {
+	peer.config = config;
+	return peer;
+});
+
+export const getIceCandidate = curry((peer) => {
+	return new Promise((resolve, reject) => {
+		peer.connection.onicecandidate = event => {
+			if (event.candidate !== null) {
+				resolve(event.candidate);
+			}
 		};
-	}
+	});
+});
 
-	getIceCandidate() {
-		return new Promise((resolve, reject) => {
-			this.connection.onicecandidate = event => {
-				if (event.candidate !== null) {
-					resolve(event.candidate);
-				}
+const onChannelClose = curry((peer) => {
+	// let subject = new Subject();
+	return new Promise((resolve) => {
+		peer.sendChannel.onclose = () => {
+			console.log(
+				'send datachannel closed',
+				peer.sendChannel.readyState
+			);
+			resolve(peer);
+		};
+	});
+
+	// return subject;
+});
+
+const onSendChannelOpen = curry((peer) => {
+	// let subject = new Subject();
+	peer.sendChannel = peer.connection.createDataChannel(
+		`channel ${Math.random()}`
+	);
+
+	return new Promise((resolve, reject) => {
+		peer.sendChannel.onerror = err => {
+			reject(err);
+		};
+
+		peer.sendChannel.onopen = () => {
+			console.log(
+				'send datachannel opened',
+				peer.sendChannel.readyState
+			);
+			resolve(peer.sendChannel);
+		};
+	})
+	// return subject;
+});
+
+const onMessage = curry((peer, message) => {
+	let payload;
+
+	try {
+		payload = JSON.parse(message.data);
+	} catch (e) {
+		payload = message.data;
+	}
+	let type = payload.type || 'response';
+
+	let handlers = peer.handlers[type] || [];
+	[...handlers, peer.defaultHandler].forEach(handler => {
+		handler(payload);
+	});
+});
+
+export const onReceiveChannelOpen = curry((peer) => {
+	// let subject = new Subject();
+
+	return new Promise(resolve => {
+		peer.connection.ondatachannel = event => {
+			peer.receiveChannel = event.channel;
+			peer.receiveChannel.onmessage = onMessage(peer);
+
+			window.onbeforeunload = () => {
+				peer.sendChannel.close();
+				peer.receiveChannel.close();
 			};
-		});
-	}
 
-	onChannelClose() {
-		// let subject = new Subject();
-		return new Promise((resolve) => {
-			this.sendChannel.onclose = () => {
+			peer.receiveChannel.onopen = () => {
 				console.log(
-					'send datachannel closed',
-					this.sendChannel.readyState
+					'receive datachannel opened',
+					peer.receiveChannel.readyState
 				);
-				resolve(this);
-			};
-		});
-
-		// return subject;
-	}
-
-	onSendChannelOpen() {
-		// let subject = new Subject();
-		this.sendChannel = this.connection.createDataChannel(
-			`channel ${Math.random()}`
-		);
-
-		return new Promise((resolve, reject) => {
-			this.sendChannel.onerror = err => {
-				reject(err);
+				resolve(peer.receiveChannel);
 			};
 
-			this.sendChannel.onopen = () => {
+			peer.receiveChannel.onclose = () => {
 				console.log(
-					'send datachannel opened',
-					this.sendChannel.readyState
+					'receive datachannel closed',
+					peer.receiveChannel.readyState
 				);
-				resolve(this.sendChannel);
+				peer.sendChannel.close();
 			};
-		})
-		// return subject;
-	}
-
-	onMessage(message) {
-		let payload;
-
-		try {
-			payload = JSON.parse(message.data);
-		} catch (e) {
-			payload = message.data;
-		}
-		let type = payload.type || 'response';
-
-		let handlers = this.handlers[type] || [];
-		[...handlers, this.defaultHandler].forEach(handler => {
-			handler(payload);
-		});
-	}
-
-	onReceiveChannelOpen() {
-		// let subject = new Subject();
-
-		return new Promise(resolve => {
-			this.connection.ondatachannel = event => {
-				this.receiveChannel = event.channel;
-				this.receiveChannel.onmessage = this.onMessage.bind(this);
-
-				window.onbeforeunload = () => {
-					this.sendChannel.close();
-					this.receiveChannel.close();
-				};
-
-				this.receiveChannel.onopen = () => {
-					console.log(
-						'receive datachannel opened',
-						this.receiveChannel.readyState
-					);
-					resolve(this.receiveChannel);
-				};
-
-				this.receiveChannel.onclose = () => {
-					console.log(
-						'receive datachannel closed',
-						this.receiveChannel.readyState
-					);
-					this.sendChannel.close();
-				};
-			};
-		});
-
-		// return subject
-	}
-
-	on(type, handler) {
-		if (typeof type === 'function') {
-			this.defaultHandler = type;
-			return;
-		}
-		this.handlers[type] = this.handlers[type] || [];
-		this.handlers[type].push(handler);
-		return this;
-	}
-
-	once(type, handler) {
-		this.handlers[type] = this.handlers[type] || [];
-		let handlerWrapper = message => {
-			handler(message);
-			this.off(type, handler);
 		};
-		this.handlers[type].push(handlerWrapper);
-		return this;
+	});
+});
+
+export const on = curry((peer, type, handler) => {
+	if (typeof type === 'function') {
+		peer.defaultHandler = type;
+		return;
 	}
+	peer.handlers[type] = peer.handlers[type] || [];
+	peer.handlers[type].push(handler);
+	return peer;
+});
 
-	off(type, handler) {
-		this.handlers[type] = (this.handlers[type] || []).filter(
-			item => item !== handler
-		);
-		return this;
+export const once = curry((peer, type, handler) => {
+	peer.handlers[type] = peer.handlers[type] || [];
+	let handlerWrapper = message => {
+		handler(message);
+		peer.off(type, handler);
+	};
+	peer.handlers[type].push(handlerWrapper);
+	return peer;
+});
+
+export const off = curry((peer, type, handler) => {
+	peer.handlers[type] = (peer.handlers[type] || []).filter(
+		item => item !== handler
+	);
+	return peer;
+});
+
+export const send = curry((peer, type, message, broadcast = false, id = Date.now()) => {
+	let data = {
+		type,
+		message,
+		id,
+		broadcast: broadcast || false,
+		source: peer.local.uuid,
+		target: peer.uuid
+	};
+
+	console.log('Sending to', data.target);
+	if (type === 'response') {
+		return peer.sendChannel.send(data.blob);
 	}
-
-	send(type, message, broadcast = false, id = Date.now()) {
-		let data = {
-			type,
-			message,
-			id,
-			broadcast: broadcast || false,
-			source: this.local.uuid,
-			target: this.uuid
-		};
-
-		console.log('Sending to', data.target);
-		if (type === 'response') {
-			return this.sendChannel.send(data.blob);
-		}
-		if (typeof data !== 'string') {
-			data = JSON.stringify(data);
-		}
-		if (this.sendChannel.readyState === 'open') {
-			this.sendChannel.send(data);
-		}
+	if (typeof data !== 'string') {
+		data = JSON.stringify(data);
 	}
-
-	broadcast(type, message, id = Date.now()) {
-		this.send(type, message, true, id);
+	if (peer.sendChannel.readyState === 'open') {
+		peer.sendChannel.send(data);
 	}
-}
+});
 
-export const createConnection = curry((type, uuid) => new Connection(type, uuid));
+export const broadcast = curry((peer, type, message, id = Date.now()) => {
+	send(peer, type, message, true, id);
+});
+
+
+export const createConnection = (type, local) => {
+	const config = {
+		iceServers: [
+			{ urls: 'stun:stun.l.google.com:19302' },
+			{
+				urls: 'turn:192.158.29.39:3478?transport=tcp',
+				credential: 'JZEOEt2V3Qb0y27GRntt2u2PAYA=',
+				username: '28224511:1379330808'
+			}
+		]
+	};
+
+	return pipe(
+		bootstrapPeer(type),
+		addConfig(config),
+		addConnection(config),
+		addOnOpen,
+		addOnClose
+	)(local);
+};

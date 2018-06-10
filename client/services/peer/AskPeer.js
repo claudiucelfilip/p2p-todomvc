@@ -1,11 +1,11 @@
-import Connection from './Connection';
+import { createConnection, getIceCandidate } from './Connection';
 import { ReplaySubject } from 'rxjs/ReplaySubject';
 import { Subject } from 'rxjs/Subject';
 import { Observable } from 'rxjs/Observable';
 import Peer from './Peer';
 import { curry, pipeP, composeP, tap, __ } from 'ramda';
 
-const ask =  curry((peer, targetUuids) => {
+const ask = curry((peer, targetUuids) => {
 	peer.local.socket.send('requestOffer', {
 		uuid: peer.local.uuid,
 		restrictedUuids: peer.restrictedUuids.value,
@@ -35,11 +35,11 @@ const answer = curry((peer, offer) => {
 		.setRemoteDescription(new RTCSessionDescription(offer.desc))
 		.then(() => peer.connection.createAnswer())
 		.then(desc => {
-			let promiseDesc = peer.connection
+			const promiseDesc = peer.connection
 				.setLocalDescription(desc)
 				.then(() => desc);
 
-			let promiseIce = peer.getIceCandidate();
+			const promiseIce = getIceCandidate(peer);
 			return Promise.all([promiseDesc, promiseIce]);
 		})
 		.then(([desc, ice]) => {
@@ -71,7 +71,10 @@ const open = curry((peer, __) => {
 	return peer.onOpen.then(() => peer);
 });
 
-export const createAskPeer = local => new Connection('ask', local);
+export const createAskPeer = local => {
+	const peer = createConnection('ask', local);
+	return peer;
+};
 export const initAskPeer = curry((targets, peer) => {
 	const askPeer = ask(peer);
 	const answerPeer = answer(peer);

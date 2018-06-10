@@ -3,31 +3,60 @@ import { ReplaySubject } from 'rxjs/ReplaySubject';
 import { BehaviorSubject } from 'rxjs/BehaviorSubject';
 import { Observable } from 'rxjs/Observable';
 import * as R from 'ramda';
-import { compose, composeP, curry, __, assoc } from 'ramda';
+import {
+	compose,
+	composeP,
+	curry,
+	__,
+	assoc,
+	cond,
+	T,
+	prop,
+	identity,
+	lensProp,
+	set,
+	view,
+	over,
+	always,
+	equals,
+	flip, apply
+} from 'ramda';
 import { createOfferPeer, initOfferPeer } from './OfferPeer';
 import { createAskPeer, initAskPeer } from './AskPeer';
+import { broadcast, on, send } from './Connection';
+import { pipe } from 'rxjs';
 
 const subscribeToPeerStream = R.curry((handle, stream) => {
 	return stream.subscribe(handle);
 });
 
-const createPeer = curry((local, type) => {
-	switch (type) {
-		case 'offer':
-			return createOfferPeer(local);
-		case 'ask':
-			return createAskPeer(local);
-	}
-});
+const createPeer = local => cond([
+	[equals('offer'), type => createOfferPeer(local)],
+	[equals('ask'), type => createAskPeer(local)],
+	[T, identity(null)]
+]);
+
 
 const initPeer = curry((targets, peer) => {
-	switch (peer.type) {
-		case 'offer':
-			return initOfferPeer(targets, peer);
-		case 'ask':
-			return initAskPeer(targets, peer);
-	}
-})
+	const getInitializer = pipe(
+		prop('type'),
+		cond([
+			[equals('offer'), () => initOfferPeer(targets)],
+			[equals('ask'), () => initAskPeer(targets)],
+			[T, identity(null)]
+		])
+	);
+
+	const flipApply = flip(apply);
+	const init = curry((peer, fn) => fn(peer));
+
+	let out = pipe(
+		getInitializer,
+		init(peer)
+	)(peer);
+
+	return out;
+});
 
 const firstPeerConnection = R.compose(
 	R.invoker(0, 'first'),
@@ -38,6 +67,7 @@ const setRestrictions = curry((uuids, peer) => {
 	peer['restrictedUuids'] = uuids;
 	return peer;
 });
+
 export default class Peers {
 	constructor(local) {
 		this.subject = new Subject();
@@ -84,39 +114,45 @@ export default class Peers {
 		);
 
 		const peer = getPeer(peerType);
-		const initializedPeer = initPeer(targets, peer);
 
-		initializedPeer
-			.then((peer) => {
-				peer.on((data) => {
-					if (this.restrictedMessages.indexOf(data.id) !== -1) {
-						return;
-					}
-					this.restrictedMessages.push(data.id);
+		const afterInitHandler = (peer) => {
+			const onMessage = on(peer);
 
-					if (data.broadcast === true) {
-						this.broadcast(data.type, data.message, data.id);
-					}
-					this.message.next(data);
-				});
+			onMessage((data) => {
+				if (this.restrictedMessages.indexOf(data.id) !== -1) {
+					return;
+				}
+				this.restrictedMessages.push(data.id);
 
-				this.pool.next([...this.pool.value, peer]);
-				this.subject.next(peer);
-
-				this.local.socket.send('connected', {
-					source: this.local.uuid,
-					target: peer.uuid
-				});
-
-				this.createPeer(peerType);
+				if (data.broadcast === true) {
+					this.broadcast(data.type, data.message, data.id);
+				}
+				this.message.next(data);
 			});
+
+			this.pool.next([...this.pool.value, peer]);
+			this.subject.next(peer);
+
+			this.local.socket.send('connected', {
+				source: this.local.uuid,
+				target: peer.uuid
+			});
+
+			this.createPeer(peerType);
+		};
+
+		composeP(
+			afterInitHandler,
+			initPeer([])
+		)(peer);
 	}
 
 	broadcast(type, message, id = Date.now() + this.local.uuid) {
 		this.pool.value
 			.forEach(peer => {
-				peer.broadcast(type, message, id);
+				broadcast(peer, type, message, id);
 			});
 	}
 
+	send = send
 };
