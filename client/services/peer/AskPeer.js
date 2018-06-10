@@ -2,7 +2,6 @@ import { createConnection, getIceCandidate } from './Connection';
 import { ReplaySubject } from 'rxjs/ReplaySubject';
 import { Subject } from 'rxjs/Subject';
 import { Observable } from 'rxjs/Observable';
-import Peer from './Peer';
 import { curry, pipeP, composeP, tap, __ } from 'ramda';
 
 const ask = curry((peer, targetUuids) => {
@@ -17,7 +16,7 @@ const ask = curry((peer, targetUuids) => {
 			if (peer.restrictedUuids.value.indexOf(offer.uuid) === -1) {
 				console.log('received offer', offer);
 				peer.local.socket.off('offer', handle);
-				// peer.restrictUuid(offer.uuid);
+
 				resolve(offer);
 			} else {
 				peer.local.socket.send('sendOffer', offer);

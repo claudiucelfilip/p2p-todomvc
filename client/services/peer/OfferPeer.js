@@ -1,6 +1,5 @@
 import { createConnection, getIceCandidate } from './Connection';
 import { ReplaySubject } from 'rxjs/ReplaySubject';
-import Peer from './Peer';
 import { curry, pipeP, __, tap } from 'ramda';
 
 const offer = curry((peer, targets) => {

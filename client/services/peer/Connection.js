@@ -20,17 +20,18 @@ const addConnection = curry((config, peer) => {
 	return peer;
 });
 
-const addOnOpen = curry((peer) => {
+const addOnOpen = curry((handler, peer) => {
 	peer.onOpen = Promise.all([
 		onSendChannelOpen(peer),
 		onReceiveChannelOpen(peer)
 	]).then(() => peer);
-
+	peer.onOpen.then(handler);
 	return peer;
 });
 
-const addOnClose = curry((peer) => {
+const addOnClose = curry((handler, peer) => {
 	peer.onClose = onChannelClose(peer);
+	peer.onClose.then(handler);
 	return peer;
 });
 
@@ -50,7 +51,6 @@ export const getIceCandidate = curry((peer) => {
 });
 
 const onChannelClose = curry((peer) => {
-	// let subject = new Subject();
 	return new Promise((resolve) => {
 		peer.sendChannel.onclose = () => {
 			console.log(
@@ -60,12 +60,9 @@ const onChannelClose = curry((peer) => {
 			resolve(peer);
 		};
 	});
-
-	// return subject;
 });
 
 const onSendChannelOpen = curry((peer) => {
-	// let subject = new Subject();
 	peer.sendChannel = peer.connection.createDataChannel(
 		`channel ${Math.random()}`
 	);
@@ -83,7 +80,17 @@ const onSendChannelOpen = curry((peer) => {
 			resolve(peer.sendChannel);
 		};
 	})
-	// return subject;
+});
+
+
+const restrictUuid = curry((peer) => {
+	peer.restrictedUuids.next([...peer.restrictedUuids.value, peer.uuid]);
+	return peer;
+});
+
+const releaseUuid = curry((peer) => {
+	peer.restrictedUuids.next(peer.restrictedUuids.value.filter(item => item !== peer.uuid));
+	return peer;
 });
 
 const onMessage = curry((peer, message) => {
@@ -103,8 +110,6 @@ const onMessage = curry((peer, message) => {
 });
 
 export const onReceiveChannelOpen = curry((peer) => {
-	// let subject = new Subject();
-
 	return new Promise(resolve => {
 		peer.connection.ondatachannel = event => {
 			peer.receiveChannel = event.channel;
@@ -135,12 +140,13 @@ export const onReceiveChannelOpen = curry((peer) => {
 });
 
 export const on = curry((peer, type, handler) => {
-	if (typeof type === 'function') {
-		peer.defaultHandler = type;
-		return;
-	}
 	peer.handlers[type] = peer.handlers[type] || [];
 	peer.handlers[type].push(handler);
+	return peer;
+});
+
+export const onAll = curry((peer, handler) => {
+	peer.defaultHandler = handler;
 	return peer;
 });
 
@@ -204,7 +210,7 @@ export const createConnection = (type, local) => {
 		bootstrapPeer(type),
 		addConfig(config),
 		addConnection(config),
-		addOnOpen,
-		addOnClose
+		addOnOpen(restrictUuid),
+		addOnClose(releaseUuid)
 	)(local);
 };

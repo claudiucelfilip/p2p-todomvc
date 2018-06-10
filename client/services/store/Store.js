@@ -1,7 +1,7 @@
 import React from 'react';
 import Local from './Local';
 import Socket from './Socket';
-import Peers from '../peer/Peers';
+import Peers, { createPeers, initPeers, send, broadcast } from '../peer/Peers';
 import { Subject, BehaviorSubject } from 'rxjs';
 
 import { Observable } from 'rxjs/Observable';
@@ -11,134 +11,138 @@ import { switchMap } from 'rxjs/operators';
 export const withStore = (store) => (Component, LoadingComponent) => {
 	store.init();
 
-    return class extends React.Component {
-        constructor (props) {
-            super(props);
+	return class extends React.Component {
+		constructor(props) {
+			super(props);
 
-            this.state = {
-                storeReady: false
-            };
+			this.state = {
+				storeReady: false
+			};
 
-            store.subject.subscribe((peers) => {
-                this.setState({
-                    storeReady: peers.length > 0
-                });
-            });
-        }
+			store.subject.subscribe((peers) => {
+				this.setState({
+					storeReady: peers.length > 0
+				});
+			});
+		}
 
-        render () {
-            if (!this.state.storeReady && LoadingComponent) {
-                return <LoadingComponent {...this.props} />;
-            }
+		render() {
+			if (!this.state.storeReady && LoadingComponent) {
+				return <LoadingComponent {...this.props} />;
+			}
 
-            return <Component p2pStore={store} {...this.props} />
-        }
-    }
+			return <Component p2pStore={store} {...this.props} />
+		}
+	}
 }
 
 export default class Store {
-    constructor (url, dbDriver) {
-        this.subject = new Subject();
-        this.db = dbDriver;
-        this.socket = new Socket(url);
-        this.local = new Local(this.socket);
-        this.peers = new Peers(this.local);
-        this.ready = false;
-        this.previousOpId = null;
+	constructor(url, dbDriver) {
+		this.subject = new Subject();
+		this.db = dbDriver;
+		this.socket = new Socket(url);
+		this.local = new Local(this.socket);
+		this.peers = createPeers(this.local);
+		this.ready = false;
+		this.previousOpId = null;
 
-        this.subject = Observable
-            .zip(
-                this.local.subject,
-                this.socket.subject
-            )
-            .switchMap(() => {
-                this.peers.init();
-                return this.peers.pool;
-            });
+		this.subject = Observable
+			.zip(
+				this.local.subject,
+				this.socket.subject
+			)
+			.switchMap(() => {
+				initPeers(this.peers);
+				return this.peers.pool;
+			});
 
-        this.peers.message.subscribe(data => {
-            if (data.type === 'op') {
-                console.log('recieved', data);
-                let operation = this[data.message.method];
-                if (typeof operation === 'function') {
-                    operation(data.message.payload, true);
-                }
-            }
-        });
-    }
+		this.peers.message.subscribe(data => {
+			if (data.type === 'op') {
+				console.log('recieved', data);
+				let operation = this[data.message.method];
+				if (typeof operation === 'function') {
+					operation(data.message.payload, true);
+				}
+			}
+		});
+	}
 
-    init () {
-        this.socket.init();
-        this.local.init();
-    }
+	init() {
+		this.socket.init();
+		this.local.init();
+	}
 
-    broadcast = (...args) => {
-        this.peers.broadcast(...args);
-    }
+	broadcast = (...args) => {
+		broadcast(this.peers, ...args);
+	}
 
-    read = (...args) => {
-        return this.db.read(...args);
-    }
+	send = (...args) => {
+		send(...args);
+	}
 
-    action = (action) => {
-        this.peers.broadcast('action', action);
-    }
+	read = (...args) => {
+		return this.db.read(...args);
+	}
 
-    create = (payload, skipBroadcast) => {
-        let id = (new Date()).getTime();
-        let action = {
-            method: 'create',
-            previousOpId: this.previousOpId,
-            id,
-            payload
-        };
+	action = (action) => {
+		broadcast(this.peers, 'action', action);
+	}
+
+	create = (payload, skipBroadcast) => {
+		let id = (new Date()).getTime();
+		let action = {
+			method: 'create',
+			previousOpId: this.previousOpId,
+			id,
+			payload
+		};
 
 
-        this.db.create(action);
+		this.db.create(action);
 
-        if (skipBroadcast) {
-            return;
-        }
+		if (skipBroadcast) {
+			return;
+		}
 
-        this.peers.broadcast('op', action);
-        this.previousOpId = id;
-    }
+		this.peers.broadcast('op', action);
+		this.previousOpId = id;
+	}
 
-    update = (payload, skipBroadcast) => {
-        let id = (new Date()).getTime();
-        let action = {
-            method: 'update',
-            previousOpId: this.previousOpId,
-            id,
-            payload
-        };
+	update = (payload, skipBroadcast) => {
+		let id = (new Date()).getTime();
+		let action = {
+			method: 'update',
+			previousOpId: this.previousOpId,
+			id,
+			payload
+		};
 
-        this.db.create(action);
+		this.db.create(action);
 
-        if (skipBroadcast) {
-            return;
-        }
+		if (skipBroadcast) {
+			return;
+		}
 
-        this.peers.broadcast('op', action);
-        this.previousOpId = id;
-    }
+		this.peers.broadcast('op', action);
+		this.previousOpId = id;
+	}
 
-    delete = (payload) => {
-        let id = (new Date()).getTime();
-        let action = {
-            method: 'delete',
-            previousOpId: this.previousOpId,
-            id,
-            payload
-        };
+	delete = (payload) => {
+		let id = (new Date()).getTime();
+		let action = {
+			method: 'delete',
+			previousOpId: this.previousOpId,
+			id,
+			payload
+		};
 
-        this.db.create(action);
+		this.db.create(action);
 
-        if (skipBroadcast) {
-            return;
-        }
+		if (skipBroadcast) {
+			return;
+		}
 
-        this.peers.broadcast('op', action);
-        this.previousOpId = id;
-    }
+		this.peers.broadcast('op', action);
+		this.previousOpId = id;
+	}
 }
