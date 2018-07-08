@@ -15,6 +15,7 @@ import reducers from './reducers';
 
 const driver = new LocalStorage();
 const store = new Store('ws://localhost:8001', driver);
+// const store = createStore('ws://localhost:8001', driver);
 const worker = new Worker();
 
 const reduxStore = createStore(reducers, devToolsEnhancer());

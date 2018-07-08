@@ -42,7 +42,7 @@ export default class Store {
 		this.db = dbDriver;
 		this.socket = new Socket(url);
 		this.local = new Local(this.socket);
-		this.peers = createPeers(this.local);
+		this.peers = createPeers(this.local, 4);
 		this.ready = false;
 		this.previousOpId = null;
 
